@@ -1,0 +1,46 @@
+h1 tweeclip
+p あなたのタイムライン上のリンク付きツイートを抽出します。
+- if (!everyauth.loggedIn)
+  h3 
+    未ログイン / 
+    a(href='/auth/twitter', style='border: 0px') Twitterでログイン
+- else
+  h3 
+    ログイン済み / 
+    a(href='/logout') ログアウト
+  // Only when logged in.
+  - if (everyauth.twitter)
+    //- h3 Twitter ユーザデータ
+    //- #twitter-login
+    //- p= JSON.stringify(everyauth.twitter.user)
+
+    h3 最近のリンク付きツイート
+    #tweets
+      - tweets.forEach ( function (tweet) {
+        div(style='border: solid 1px #000000; margin: 5px; padding: 5px')
+          p.user
+            a(href= 'http://twitter.com/' + tweet.user.screen_name, target='_blank')
+              img(src= tweet.user.profile_image_url, width=32, height=32)
+              span= "@" + tweet.user.screen_name + " / " + tweet.user.name
+            
+            //- 投稿時間
+            = " "
+            - var sec = Math.round(((new Date() - new Date(tweet.created_at)) / 1000)); 
+            - if (sec < 60)
+              = sec + "秒前"
+            - else if (sec < 60 * 60)
+              = Math.round(sec / 60) + "分前"
+            - else if (sec < 60 * 60 * 24)
+              = Math.round(sec / (60*60)) + "時間前"
+            - else
+              = Math.round(sec / (60*60*24)) + "日前"
+            = "に投稿されました"
+          p.text
+            a(href= tweet.text.match(/http:\/\/[\x21-\x7e]+/), target='_blank')= tweet.text
+      - })
+  - else
+    p ログイン情報が取得できません
+
+// footer
+p Copytight 2011 
+  a(href='http://twitter.com/ksk_kbys') @ksk_kbys
