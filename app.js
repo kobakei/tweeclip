@@ -1,4 +1,5 @@
 var express = require('express')
+  , routes = require('./routes')
   , log4js = require('log4js')
   , everyauth = require('everyauth')
   , RedisStore = require('connect-redis')(express)
@@ -79,120 +80,30 @@ everyauth.twitter.getListsStatuses = function (param, accessToken, accessSecret,
 /**
  * create server, listening port is 3000.
  */
-var app = express.createServer(
-      express.bodyParser()
-      , express.static(__dirname + "/public")
-      , express.cookieParser()
-      //, express.session({ secret: 'secret'})
-      , express.session({
-          secret: 'keisuke',
-          store: new RedisStore(),
-          cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } //1 week
-        })
-      , everyauth.middleware()
-    );
-
-/**
- * Setting to view engine is jade.
- */
-app.configure( function () {
+var app = express.createServer();
+app.configure(function () {
+  app.set('views', __dirname + '/views');
   app.set('view engine', 'jade');
-});
-app.get('/', function (req, res) {
-  // debug
-  //log.debug(req);
-  // response data
-  var resp = {
-    title: 'Express'
-  };
-  // Only when logged in
-  if (req.loggedIn) {
-    //
-    var token = req.user.twitter.accessToken;
-    var secret = req.user.twitter.accessSecret;
-
-    // Get lists
-    everyauth.twitter.getListsAll(token, secret, function (err, data) {
-        log.info("list callback");
-        if (err) {
-          log.error(err);
-          res.send(err)
-        } else {
-          // append lists to resp
-          resp.lists = JSON.parse(data);
-          // Get timeline
-          everyauth.twitter.getHomeTimeline(token, secret, function (err, data) {
-            log.info("tl callback");
-            if (err) {
-              log.error(err);
-              res.send(err);
-            } else {
-              var tl = JSON.parse(data);
-              resp.tweets = [];
-              for (var i = 0; i < tl.length; i++) {
-                if (tl[i].text.indexOf('http://') >= 0 || tl[i].text.indexOf('https://') >= 0) {
-                  resp.tweets.push(tl[i]);
-                }
-              }
-              res.render('index', resp);
-            }
-          }); 
-        }
-    });
-  } else {
-    res.render('index', resp);
-  }
+  app.use(express.bodyParser());
+  // auth
+  app.use(express.cookieParser());
+  app.use(express.session({
+    secret: 'tweeclip',
+    store: new RedisStore(),
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } //1 week
+  }));
+  app.use(everyauth.middleware());
+  app.use(express.methodOverride());
+  app.use(app.router);
+  app.use(express.static(__dirname + '/public'));
 });
 
-// Filter timelines by list
-app.get('/list/:id', function (req, res) {
-  // debug
-  //log.debug(req);
-  // response data
-  var resp = {
-    title: 'Express'
-  };
-  // Only when logged in
-  if (req.loggedIn) {
-    //
-    var token = req.user.twitter.accessToken;
-    var secret = req.user.twitter.accessSecret;
+// routes
 
-    // Get lists
-    everyauth.twitter.getListsAll(token, secret, function (err, data) {
-        log.info("list callback");
-        if (err) {
-          log.error(err);
-          res.send(err)
-        } else {
-          // append lists to resp
-          resp.lists = JSON.parse(data);
-          // Get timeline
-          var param = {
-            list_id: req.params.id
-          };
-          everyauth.twitter.getListsStatuses(param, token, secret, function (err, data) {
-            log.info("list tl callback");
-            if (err) {
-              log.error(err);
-              res.send(err);
-            } else {
-              var tl = JSON.parse(data);
-              resp.tweets = [];
-              for (var i = 0; i < tl.length; i++) {
-                if (tl[i].text.indexOf('http://') >= 0 || tl[i].text.indexOf('https://') >= 0) {
-                  resp.tweets.push(tl[i]);
-                }
-              }
-              res.render('index', resp);
-            }
-          }); 
-        }
-    });
-  } else {
-    res.render('index', resp);
-  }
-});
+app.get('/', routes.index);
+app.get('/list/:id', routes.list)
+
+// Start sever
 
 everyauth.helpExpress(app);
 app.listen(3000);
