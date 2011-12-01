@@ -5,6 +5,8 @@
   , "dependencies": {
       "express": "2.5.1"
     , "jade": ">= 0.0.1"
-	, "everyauth": ">= 0.0.1"
+    , "everyauth": ">= 0.0.1"
+    , "log4js": ">= 0.0.1"
+    , "connect-redis": ">= 0.0.1"
   }
 }

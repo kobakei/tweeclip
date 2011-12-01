@@ -1,11 +1,17 @@
 var express = require('express')
-, everyauth = require('everyauth')
-, conf = require('./conf')
+  , log4js = require('log4js')
+  , everyauth = require('everyauth')
+  , RedisStore = require('connect-redis')(express)
+  , conf = require('./conf');
+
+// logger
+var log = log4js.getLogger('tweeclip');
+log.setLevel('debug');
 
 //user stack
-, usersById = {}
-, nextUserId = 0
-, usersByTwitId = {};
+var usersById = {}
+  , nextUserId = 0
+  , usersByTwitId = {};
 
 function addUser (source, sourceUser) {
   var user;
@@ -28,8 +34,8 @@ everyauth
   .consumerKey(conf.twit.consumerKey) //Twitterのアプリ登録で得られるconsumer kye.
   .consumerSecret(conf.twit.consumerSecret) //〃 consumer secret.
   .findOrCreateUser( function (sess, accessToken, accessSecret, twitUser) {
-    console.log(accessToken);
-    console.log(accessSecret);
+    //log.info(accessToken);
+    //log.info(accessSecret);
     twitUser.accessToken = accessToken;
     twitUser.accessSecret = accessSecret;
     return usersByTwitId[twitUser.id] 
@@ -44,7 +50,12 @@ var app = express.createServer(
       express.bodyParser()
       , express.static(__dirname + "/public")
       , express.cookieParser()
-      , express.session({ secret: 'htuayreve'})
+      //, express.session({ secret: 'secret'})
+      , express.session({
+          secret: 'keisuke',
+          store: new RedisStore(),
+          cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } //1 week
+        })
       , everyauth.middleware()
     );
 
@@ -56,6 +67,9 @@ app.configure( function () {
   app.set('view engine', 'jade');
 });
 app.get('/', function (req, res) {
+  // debug
+  //log.debug(req);
+  // response data
   var resp = {
     title: 'Express'
   };
@@ -68,10 +82,10 @@ app.get('/', function (req, res) {
       req.user.twitter.accessSecret,
       function (err, data) {
         if (err) {
-          console.log(err);
+          log.error(err);
           res.send('get error');
         } else {
-          console.log("get hometimeline OK");
+          log.info("get hometimeline OK");
           var tl = JSON.parse(data);
           resp.tweets = [];
           for (var i = 0; i < tl.length; i++) {
