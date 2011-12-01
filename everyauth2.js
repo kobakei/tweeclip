@@ -13,11 +13,10 @@ function clone(o) {
 //
 var everyauth2 = clone(everyauth);
  
-// Add orginal params/methods
-
 /**
  * Append api wrapper to everyauth.twitter
  */
+// get home_timeline
 everyauth2.twitter.getHomeTimeline = function (accessToken, accessSecret, callback) {
   console.log("getHomeTimeline");
   everyauth2.twitter.oauth.getProtectedResource(
