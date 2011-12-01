@@ -15,12 +15,20 @@ p あなたのタイムライン上のリンク付きツイートを抽出しま
     //- p= JSON.stringify(everyauth.twitter.user)
 
     h3 最近のリンク付きツイート
+    p 
+      = "リストでフィルタリング "
+      a(href='/') すべて
+      = " | "
+      - for (var i = 0; i < lists.length; i++)
+        a(href='/list/' + lists[i].id)
+          = lists[i].name
+        = " | "
     #tweets
       - tweets.forEach ( function (tweet) {
         div(style='border: solid 1px #000000; margin: 5px; padding: 5px')
           p.user
             a(href= 'http://twitter.com/' + tweet.user.screen_name, target='_blank')
-              img(src= tweet.user.profile_image_url, width=32, height=32)
+              img(src= tweet.user.profile_image_url, width=32, height=32, style='vertical-align: middle')
               span= "@" + tweet.user.screen_name + " / " + tweet.user.name
             
             //- 投稿時間

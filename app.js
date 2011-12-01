@@ -8,40 +8,73 @@ var express = require('express')
 var log = log4js.getLogger('tweeclip');
 log.setLevel('debug');
 
-//user stack
+/**
+ * Twitter OAuth
+ */
 var usersById = {}
   , nextUserId = 0
   , usersByTwitId = {};
-
 function addUser (source, sourceUser) {
   var user;
   user = usersById[++nextUserId] = {id: nextUserId};
   user[source] = sourceUser;
   return user;
 }
-
+// Find user by id
 everyauth.everymodule
   .findUserById( function (id, callback) {
     callback(null, usersById[id]);
   });
-
-
-/**
- * Twitter OAuth
- */
+//
 everyauth
   .twitter
-  .consumerKey(conf.twit.consumerKey) //Twitterのアプリ登録で得られるconsumer kye.
-  .consumerSecret(conf.twit.consumerSecret) //〃 consumer secret.
+  .consumerKey(conf.twit.consumerKey) 
+  .consumerSecret(conf.twit.consumerSecret) 
   .findOrCreateUser( function (sess, accessToken, accessSecret, twitUser) {
     //log.info(accessToken);
     //log.info(accessSecret);
     twitUser.accessToken = accessToken;
     twitUser.accessSecret = accessSecret;
-    return usersByTwitId[twitUser.id] 
-      || (usersByTwitId[twitUser.id] = addUser('twitter', twitUser));
+    return usersByTwitId[twitUser.id] || (usersByTwitId[twitUser.id] = addUser('twitter', twitUser));
   })
   .redirectPath('/');
+
+/**
+ * Append api wrapper to everyauth.twitter
+ */
+// /statuses/home_timeline
+everyauth.twitter.getHomeTimeline = function (accessToken, accessSecret, callback) {
+  log.info("getHomeTimeline");
+  everyauth.twitter.oauth.getProtectedResource(
+      "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_rts=true",
+      "GET",
+      accessToken,
+      accessSecret,
+      callback
+  );
+};
+// /lists/all 
+everyauth.twitter.getListsAll = function (accessToken, accessSecret, callback) {
+  log.info("getListsAll");
+  everyauth.twitter.oauth.getProtectedResource(
+      "http://api.twitter.com/1/lists/all.json",
+      "GET",
+      accessToken,
+      accessSecret,
+      callback
+  );
+};
+// list/statuses
+everyauth.twitter.getListsStatuses = function (param, accessToken, accessSecret, callback) {
+  log.info("getListsStatuses: " + param.list_id);
+  everyauth.twitter.oauth.getProtectedResource(
+      "http://api.twitter.com/1/lists/statuses.json?list_id=" + param.list_id,
+      "GET",
+      accessToken,
+      accessSecret,
+      callback
+  );
+};
 
 /**
  * create server, listening port is 3000.
@@ -59,7 +92,6 @@ var app = express.createServer(
       , everyauth.middleware()
     );
 
-
 /**
  * Setting to view engine is jade.
  */
@@ -73,30 +105,90 @@ app.get('/', function (req, res) {
   var resp = {
     title: 'Express'
   };
-  // Get home_timeline
+  // Only when logged in
   if (req.loggedIn) {
-    everyauth.twitter.oauth.getProtectedResource(
-      "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_rts=true",
-      "GET",
-      req.user.twitter.accessToken,
-      req.user.twitter.accessSecret,
-      function (err, data) {
+    //
+    var token = req.user.twitter.accessToken;
+    var secret = req.user.twitter.accessSecret;
+
+    // Get lists
+    everyauth.twitter.getListsAll(token, secret, function (err, data) {
+        log.info("list callback");
         if (err) {
           log.error(err);
-          res.send('get error');
+          res.send(err)
         } else {
-          log.info("get hometimeline OK");
-          var tl = JSON.parse(data);
-          resp.tweets = [];
-          for (var i = 0; i < tl.length; i++) {
-            if (tl[i].text.indexOf('http://') >= 0 || tl[i].text.indexOf('https://') >= 0) {
-              resp.tweets.push(tl[i]);
+          // append lists to resp
+          resp.lists = JSON.parse(data);
+          // Get timeline
+          everyauth.twitter.getHomeTimeline(token, secret, function (err, data) {
+            log.info("tl callback");
+            if (err) {
+              log.error(err);
+              res.send(err);
+            } else {
+              var tl = JSON.parse(data);
+              resp.tweets = [];
+              for (var i = 0; i < tl.length; i++) {
+                if (tl[i].text.indexOf('http://') >= 0 || tl[i].text.indexOf('https://') >= 0) {
+                  resp.tweets.push(tl[i]);
+                }
+              }
+              res.render('index', resp);
             }
-          }
-          res.render('index', resp);
+          }); 
         }
-      }
-    );
+    });
+  } else {
+    res.render('index', resp);
+  }
+});
+
+// Filter timelines by list
+app.get('/list/:id', function (req, res) {
+  // debug
+  //log.debug(req);
+  // response data
+  var resp = {
+    title: 'Express'
+  };
+  // Only when logged in
+  if (req.loggedIn) {
+    //
+    var token = req.user.twitter.accessToken;
+    var secret = req.user.twitter.accessSecret;
+
+    // Get lists
+    everyauth.twitter.getListsAll(token, secret, function (err, data) {
+        log.info("list callback");
+        if (err) {
+          log.error(err);
+          res.send(err)
+        } else {
+          // append lists to resp
+          resp.lists = JSON.parse(data);
+          // Get timeline
+          var param = {
+            list_id: req.params.id
+          };
+          everyauth.twitter.getListsStatuses(param, token, secret, function (err, data) {
+            log.info("list tl callback");
+            if (err) {
+              log.error(err);
+              res.send(err);
+            } else {
+              var tl = JSON.parse(data);
+              resp.tweets = [];
+              for (var i = 0; i < tl.length; i++) {
+                if (tl[i].text.indexOf('http://') >= 0 || tl[i].text.indexOf('https://') >= 0) {
+                  resp.tweets.push(tl[i]);
+                }
+              }
+              res.render('index', resp);
+            }
+          }); 
+        }
+    });
   } else {
     res.render('index', resp);
   }
